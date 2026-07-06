@@ -307,22 +307,47 @@ document.getElementById('school_organization').addEventListener('change', (event
   }
 });
 
+function setDistrictIdPair(name, id) {
+  if (!distIdPairs.some(function(pair) { return pair[0] === name; })) {
+    distIdPairs.push([name, id]);
+  }
+}
+
+function hideSchoolPartnerFields() {
+  const schoolPartnersWrap = document.getElementById('schoolPartners');
+  if (schoolPartnersWrap) schoolPartnersWrap.classList.add('hide4');
+
+  const partnerField = document.getElementById('school_system_partners');
+  if (partnerField) partnerField.value = '';
+
+  document.getElementById('city-cell').classList.add('hide1');
+  document.getElementById('district-cell').classList.add('hide1');
+  document.getElementById('subdistrict-cell').classList.add('hide2');
+
+  document.getElementById('city').value = '';
+  document.getElementById('school_organization').value = '';
+  document.getElementById('nyc_sub_district').value = '';
+
+  const districtIdField = document.getElementById('school_organization_id');
+  if (districtIdField) districtIdField.value = '';
+
+  selectedState.city = false;
+  selectedState.district = false;
+  selectedState.subdistrict = false;
+}
+
 document.getElementById('state').addEventListener('change', (event) => {
   if (document.getElementById('state').value == "New York" && document.getElementById('working_outside_home_state').value == "No") {
-    document.getElementById('city-cell').classList.remove('hide1');
-    document.getElementById('district-cell').classList.remove('hide1');
+    document.getElementById('schoolPartners').classList.remove('hide4');
   } else if (document.getElementById('working_outside_home_state').value == "No") {
     document.getElementById('otherState').classList.add('hide3');
-    document.getElementById('city-cell').classList.add('hide1');
-    document.getElementById('district-cell').classList.add('hide1');
-    document.getElementById('subdistrict-cell').classList.add('hide2');
+    hideSchoolPartnerFields();
   }
 });
 
 document.getElementById('state_i_will_work_in').addEventListener('change', (event) => {
   if (document.getElementById('state_i_will_work_in').value == "New York" && document.getElementById('working_outside_home_state').value == "Yes") {
-    document.getElementById('city-cell').classList.remove('hide1');
-    document.getElementById('district-cell').classList.remove('hide1');
+    document.getElementById('schoolPartners').classList.remove('hide4');
   }
 });
 
@@ -331,9 +356,7 @@ document.getElementById('working_outside_home_state').addEventListener('change',
     document.getElementById('otherState').classList.remove('hide3');
   } else {
     if (document.getElementById('state').value != "New York") {
-      document.getElementById('city-cell').classList.add('hide1');
-      document.getElementById('district-cell').classList.add('hide1');
-      document.getElementById('subdistrict-cell').classList.add('hide2');
+      hideSchoolPartnerFields();
     }
     document.getElementById('otherState').classList.add('hide3');
   }
@@ -345,6 +368,63 @@ document.getElementById('school_organization').addEventListener('change', (event
     document.getElementById('subdistrict-cell').classList.remove('hide2');
   } else {
     document.getElementById('subdistrict-cell').classList.add('hide2');
+  }
+});
+
+document.getElementById('school_system_partners').addEventListener('change', (event) => {
+  const value = event.target.value;
+  const cityField = document.getElementById('city');
+  const districtField = document.getElementById('school_organization');
+  const districtIdField = document.getElementById('school_organization_id');
+
+  if (value === '') {
+    document.getElementById('city-cell').classList.add('hide1');
+    document.getElementById('district-cell').classList.add('hide1');
+    document.getElementById('subdistrict-cell').classList.add('hide2');
+    cityField.value = '';
+    districtField.value = '';
+    document.getElementById('nyc_sub_district').value = '';
+    if (districtIdField) districtIdField.value = '';
+    selectedState.city = false;
+    selectedState.district = false;
+    selectedState.subdistrict = false;
+  } else if (value === 'Other') {
+    cityField.value = '';
+    districtField.value = '';
+    document.getElementById('nyc_sub_district').value = '';
+    if (districtIdField) districtIdField.value = '';
+    selectedState.city = false;
+    selectedState.district = false;
+    selectedState.subdistrict = false;
+    document.getElementById('subdistrict-cell').classList.add('hide2');
+    document.getElementById('city-cell').classList.remove('hide1');
+    document.getElementById('district-cell').classList.remove('hide1');
+  } else if (value === 'NYCPS (New York City Public Schools)') {
+    document.getElementById('city-cell').classList.add('hide1');
+    document.getElementById('district-cell').classList.add('hide1');
+    cityField.value = 'NEW YORK';
+    setDistrictIdPair('NYCPS (New York City Public Schools)', '');
+    districtField.value = 'NYCPS (New York City Public Schools)';
+    districtField.dispatchEvent(new Event('change', { bubbles: true }));
+  } else {
+    document.getElementById('city-cell').classList.add('hide1');
+    document.getElementById('district-cell').classList.add('hide1');
+
+    const match = location_list && location_list.find(function(r) {
+      return String(r.agengy_id) === value;
+    });
+
+    if (match) {
+      cityField.value = match.location_city;
+      setDistrictIdPair(match.agency_name, String(match.agengy_id));
+      districtField.value = match.agency_name;
+      districtField.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      console.warn('No matching school found for partner id', value);
+      cityField.value = '';
+      districtField.value = '';
+      if (districtIdField) districtIdField.value = '';
+    }
   }
 });
 
@@ -452,24 +532,43 @@ function stage2() {
   }
 
   if (workingInNewYork) {
-    const cityValid = validateCombo(searchInput, cities, 'city');
-    const districtValid = validateCombo(searchInput2, districts, 'district');
-    const subdistrictValid = validateCombo(searchInput3, subDistricts, 'subdistrict');
+    var schoolPartnerField = document.getElementById('school_system_partners');
+    var partnerValue = schoolPartnerField ? schoolPartnerField.value : '';
+    var usingPartnerLookup = partnerValue !== '' && partnerValue !== 'Other';
 
-    if (!cityValid) {
-      city.setCustomValidity("Please select the city you will be working in");
-      city.reportValidity();
-      valid = false;
+    if (usingPartnerLookup) {
+      if (!city.value || !district.value) {
+        schoolPartnerField.setCustomValidity("Please select your school system partner again");
+        schoolPartnerField.reportValidity();
+        valid = false;
+      } else {
+        schoolPartnerField.setCustomValidity("");
+        city.setCustomValidity("");
+        district.setCustomValidity("");
+      }
     } else {
-      city.setCustomValidity("");
+      const cityValid = validateCombo(searchInput, cities, 'city');
+      const districtValid = validateCombo(searchInput2, districts, 'district');
+
+      if (!cityValid) {
+        city.setCustomValidity("Please select the city you will be working in");
+        city.reportValidity();
+        valid = false;
+      } else {
+        city.setCustomValidity("");
+      }
+
+      if (!districtValid) {
+        district.setCustomValidity("Please select the district you will be working in");
+        district.reportValidity();
+        valid = false;
+      } else {
+        district.setCustomValidity("");
+      }
     }
 
-    if (!districtValid) {
-      district.setCustomValidity("Please select the district you will be working in");
-      district.reportValidity();
-      valid = false;
-    } else if (district.value == "NYCPS (New York City Public Schools)") {
-      district.setCustomValidity("");
+    if (district.value == "NYCPS (New York City Public Schools)") {
+      const subdistrictValid = validateCombo(searchInput3, subDistricts, 'subdistrict');
       if (!subdistrictValid) {
         subdistrict.setCustomValidity("Please select the NYC subdistrict you will be working in");
         subdistrict.reportValidity();
@@ -477,8 +576,6 @@ function stage2() {
       } else {
         subdistrict.setCustomValidity("");
       }
-    } else {
-      district.setCustomValidity("");
     }
   }
 
